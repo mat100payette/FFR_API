@@ -1,4 +1,4 @@
-import multiprocessing
+import multiprocessing as mp
 from controller import call_api
 from services.service import set_api_key
 from utils.args import parse_args
@@ -10,7 +10,7 @@ def main():
     a = 1
 
 if __name__ == '__main__':
-    multiprocessing.freeze_support()
+    mp.freeze_support()
     try:
         main()
         print('Done.')
