@@ -1,5 +1,5 @@
 import multiprocessing
-from src.controller import call_api
+from controller import call_api
 from services.service import set_api_key
 from utils.args import parse_args
 

@@ -1,5 +1,4 @@
 import itertools
-from cache_to_disk import cache_to_disk
 import multiprocessing as mp
 import requests
 
@@ -19,7 +18,6 @@ def set_api_key(key: str):
     global _API_KEY
     _API_KEY = key
 
-@cache_to_disk()
 def _get_data(action: str, query_params: str):
     response = requests.get(f'{_API_URL}?key={_API_KEY}&action={action}&{query_params}')
     response.raise_for_status()
