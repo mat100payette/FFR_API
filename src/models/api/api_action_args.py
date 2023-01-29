@@ -3,12 +3,14 @@ from dataclasses import dataclass
 @dataclass
 class ChartArgs:
     level: int
+    extended: bool
 
 @dataclass
 class AllChartArgs:
     start_id: int
     end_id: int
     compressed: bool
+    extended: bool
 
 @dataclass
 class LevelScoresArgs:

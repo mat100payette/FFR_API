@@ -1,8 +1,8 @@
 import argparse
 from typing import Callable
 
-from models.api_action import ApiAction
-from models.api_action_args import AllChartArgs, AllLevelScoresArgs, ChartArgs, LevelScoresArgs
+from models.api.api_action import ApiAction
+from models.api.api_action_args import AllChartArgs, AllLevelScoresArgs, ChartArgs, LevelScoresArgs
 
 def parse_args(key_setter: Callable[[str], None]):
     parser = argparse.ArgumentParser(description='Args for API experiments.')
@@ -14,11 +14,13 @@ def parse_args(key_setter: Callable[[str], None]):
 
     parser_chart = subparsers.add_parser(ApiAction.CHART.value, help='Chart parameters')
     parser_chart.add_argument('-level', '--L', type=int, help='The level from which to pull chart info', default=1)
+    parser_chart.add_argument('-extended', '--X', type=int, help='Extended chart data', default=False, action=argparse.BooleanOptionalAction)
 
     parser_all_charts = subparsers.add_parser(ApiAction.ALL_CHARTS.value, help='All charts parameters')
     parser_all_charts.add_argument('-startid', '--S', type=int, help='The song id to start from', default=1)
     parser_all_charts.add_argument('-endid', '--E', type=int, help='The song id to end before', default=10000)
     parser_all_charts.add_argument('-comp', '--C', type=bool, help='Compress output files', default=False, action=argparse.BooleanOptionalAction)
+    parser_all_charts.add_argument('-extended', '--X', type=int, help='Extended chart data', default=False, action=argparse.BooleanOptionalAction)
 
     parser_level_scores = subparsers.add_parser(ApiAction.LEVEL_SCORES.value, help='Level scores parameters')
     parser_level_scores.add_argument('-level', '--L', type=int, help='The level from which to pull scores', default=1)
@@ -43,10 +45,10 @@ def parse_args(key_setter: Callable[[str], None]):
     # Create typed args object
 
     if (action == ApiAction.CHART.value):
-        return ChartArgs(parsed_args.L)
+        return ChartArgs(parsed_args.L, parsed_args.X)
 
     if (action == ApiAction.ALL_CHARTS.value):
-        return AllChartArgs(parsed_args.S, parsed_args.E, parsed_args.C)
+        return AllChartArgs(parsed_args.S, parsed_args.E, parsed_args.C, parsed_args.X)
 
     if (action == ApiAction.LEVEL_SCORES.value):
         return LevelScoresArgs(parsed_args.L, parsed_args.P, parsed_args.M)

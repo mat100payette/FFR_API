@@ -2,11 +2,12 @@ import itertools
 import multiprocessing as mp
 import requests
 
-from models.api_action import ApiAction
-from models.api_action_args import AllChartArgs, AllLevelScoresArgs, ChartArgs, LevelRanksArgs, LevelScoresArgs
+from models.api.api_action import ApiAction
+from models.api.api_action_args import AllChartArgs, AllLevelScoresArgs, ChartArgs, LevelRanksArgs, LevelScoresArgs
 from models.responses.chart_response import ChartResponse, parse_chart_notes
 from models.responses.level_ranks_response import LevelRanksResponse
 from models.responses.level_scores_response import LevelScoresResponse, LevelScoresScore
+from transformers.ffr_chart_to_extended_chart import extend_ffr_chart
 from utils.io import write_compressed_json_to_file, write_json_to_file
 
 _API_URL = 'https://www.flashflashrevolution.com/api/api.php'
@@ -38,14 +39,20 @@ def get_chart(args: ChartArgs):
 
     response = _get_data(ApiAction.CHART.value, query_params)
     response['chart'] = parse_chart_notes(response['chart'])
-    return ChartResponse.from_dict(response)
+
+    chart = ChartResponse.from_dict(response)
+
+    if (args.extended):
+        return extend_ffr_chart(chart)
+    
+    return chart
 
 def get_all_charts(args: AllChartArgs):
     level_ids = _get_level_ids()
     ranged_level_ids = set(filter(lambda lvl_id: args.start_id <= lvl_id < args.end_id, level_ids))
 
     pool = mp.Pool(initializer=set_api_key, initargs=(_API_KEY,))
-    pool.starmap(_get_complete_charts, zip(ranged_level_ids, itertools.repeat(args.compressed)))
+    pool.starmap(_get_all_charts_internal, zip(ranged_level_ids, itertools.repeat(args.compressed), itertools.repeat(args.extended)))
 
 def get_level_ranks(args: LevelRanksArgs):
     if args.userid > 0:
@@ -69,13 +76,13 @@ def get_all_level_scores(args: AllLevelScoresArgs):
     ranged_level_ids = set(filter(lambda lvl_id: args.start_id <= lvl_id < args.end_id, level_ids))
 
     pool = mp.Pool(initializer=set_api_key, initargs=(_API_KEY,))
-    pool.starmap(_get_complete_level_scores, zip(ranged_level_ids, itertools.repeat(args.compressed)))
+    pool.starmap(_get_all_level_scores_internal, zip(ranged_level_ids, itertools.repeat(args.compressed)))
 
 def _get_level_ids():
     default_level_ranks = get_level_ranks(LevelRanksArgs(0, _DEFAULT_USERNAME))
     return set(default_level_ranks.songs.keys())
 
-def _get_complete_level_scores(level_id: int, compressed: bool):
+def _get_all_level_scores_internal(level_id: int, compressed: bool):
     page_count = 0
 
     def parse_page(page: int):
@@ -106,10 +113,10 @@ def _get_complete_level_scores(level_id: int, compressed: bool):
     except Exception as e:
         print(f'Error on song {level_id}: {e}')
 
-def _get_complete_charts(level_id: int, compressed: bool):
+def _get_all_charts_internal(level_id: int, compressed: bool, extended: bool):
     try:
-        chart = get_chart(ChartArgs(level_id))
-        filename = f'data/charts/chart_{level_id}'
+        chart = get_chart(ChartArgs(level_id, extended))
+        filename = f'data/charts/extended/chart_{level_id}' if extended else f'data/charts/chart_{level_id}'
         dict_data = chart.to_dict()
 
         if compressed:
