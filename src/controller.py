@@ -1,4 +1,4 @@
-from models.api_action_args import AllChartArgs, AllLevelScoresArgs, ChartArgs, LevelScoresArgs
+from models.api.api_action_args import AllChartArgs, AllLevelScoresArgs, ChartArgs, LevelScoresArgs
 from services.service import get_all_charts, get_all_level_scores, get_chart, get_level_scores
 
 

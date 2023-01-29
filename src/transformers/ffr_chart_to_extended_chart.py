@@ -44,7 +44,7 @@ def compute_hits(ffr_chart: ChartResponse):
     all_hits = np.concatenate((left_hits_with_gaps, right_hits_with_gaps), axis=0)
     all_hits_sorted_time = all_hits[all_hits[:, 1].argsort()]
     
-    return [ChartHit(hand, finger, ms, gap) for (hand, ms, finger, gap) in all_hits_sorted_time]
+    return [ChartHit(int(hand), int(finger), int(ms), int(gap)) for (hand, ms, finger, gap) in all_hits_sorted_time]
 
 
     
