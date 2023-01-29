@@ -4,21 +4,14 @@ import pandas as pd
 from models.charts.extended_chart import ChartHit, ExtendedChart
 from models.responses.chart_response import ChartNote, ChartResponse
 
-DIRECTIONS = {
-    'L': 0,
-    'D': 1,
-    'U': 2,
-    'R': 3
-}
-
 def extend_ffr_chart(ffr_chart: ChartResponse):
     return ExtendedChart(ffr_chart.info, ffr_chart.chart, compute_hits(ffr_chart))
 
 def ffr_note_dir(note: ChartNote):
-    return DIRECTIONS[note.dir]
+    return note.dir
 
 def ffr_note_ms(note: ChartNote):
-    return int(note.frame * 1000 / 30) if note.frame else note.ms
+    return note.ms
 
 def ffr_note_hand(note: ChartNote):
     return 0 if ffr_note_dir(note) <= 1 else 1

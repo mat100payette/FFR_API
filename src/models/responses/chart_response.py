@@ -15,9 +15,9 @@ class ChartInfo(DataClassJsonMixin):
 
 @dataclass
 class ChartNote(DataClassJsonMixin):
-    dir: str
+    dir: int
     frame: int
-    color: str
+    color: int
     ms: int
 
 @dataclass

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 @dataclass
 class ChartArgs:
     level: int
+    compressed: bool
     extended: bool
 
 @dataclass

@@ -14,6 +14,7 @@ def parse_args(key_setter: Callable[[str], None]):
 
     parser_chart = subparsers.add_parser(ApiAction.CHART.value, help='Chart parameters')
     parser_chart.add_argument('-level', '--L', type=int, help='The level from which to pull chart info', default=1)
+    parser_chart.add_argument('-comp', '--C', type=bool, help='Compress output file', default=False, action=argparse.BooleanOptionalAction)
     parser_chart.add_argument('-extended', '--X', type=int, help='Extended chart data', default=False, action=argparse.BooleanOptionalAction)
 
     parser_all_charts = subparsers.add_parser(ApiAction.ALL_CHARTS.value, help='All charts parameters')
@@ -45,7 +46,7 @@ def parse_args(key_setter: Callable[[str], None]):
     # Create typed args object
 
     if (action == ApiAction.CHART.value):
-        return ChartArgs(parsed_args.L, parsed_args.X)
+        return ChartArgs(parsed_args.L, parsed_args.C, parsed_args.X)
 
     if (action == ApiAction.ALL_CHARTS.value):
         return AllChartArgs(parsed_args.S, parsed_args.E, parsed_args.C, parsed_args.X)

@@ -35,17 +35,32 @@ def _get_data(action: str, query_params: str):
     return json_response
 
 def get_chart(args: ChartArgs):
-    query_params = f'level={args.level}'
+    level_id = args.level
+    extended = args.extended
+    compressed = args.compressed
+    query_params = f'level={level_id}'
 
-    response = _get_data(ApiAction.CHART.value, query_params)
-    response['chart'] = parse_chart_notes(response['chart'])
+    try:
+        response = _get_data(ApiAction.CHART.value, query_params)
+        response['chart'] = parse_chart_notes(response['chart'])
 
-    chart = ChartResponse.from_dict(response)
+        chart = ChartResponse.from_dict(response)
 
-    if (args.extended):
-        return extend_ffr_chart(chart)
-    
-    return chart
+        if (extended):
+            chart = extend_ffr_chart(chart)
+
+        filename_extended = '/extended' if extended else ''
+        filename_compressed = '/compressed' if compressed else ''
+        filename = f'data/charts{filename_extended}{filename_compressed}/chart_{level_id}'
+        dict_data = chart.to_dict()
+
+        if compressed:
+            write_compressed_json_to_file(dict_data, filename)
+        else:
+            write_json_to_file(dict_data, filename)
+
+    except Exception as e:
+        print(f'Error on song {level_id}: {e}')
 
 def get_all_charts(args: AllChartArgs):
     level_ids = _get_level_ids()
@@ -115,14 +130,6 @@ def _get_all_level_scores_internal(level_id: int, compressed: bool):
 
 def _get_all_charts_internal(level_id: int, compressed: bool, extended: bool):
     try:
-        chart = get_chart(ChartArgs(level_id, extended))
-        filename = f'data/charts/extended/chart_{level_id}' if extended else f'data/charts/chart_{level_id}'
-        dict_data = chart.to_dict()
-
-        if compressed:
-            write_compressed_json_to_file(dict_data, filename)
-        else:
-            write_json_to_file(dict_data, filename)
-
+        get_chart(ChartArgs(level_id, compressed, extended))
     except Exception as e:
         print(f'Error on song {level_id}: {e}')
