@@ -1,10 +1,11 @@
 import itertools
+from msgspec.json import decode, encode
 import multiprocessing as mp
 import requests
 
 from models.api.api_action import ApiAction
 from models.api.api_action_args import AllChartArgs, AllLevelScoresArgs, ChartArgs, LevelRanksArgs, LevelScoresArgs
-from models.responses.chart_response import ChartResponse, parse_chart_notes
+from models.responses.chart_response import ChartResponse
 from models.responses.level_ranks_response import LevelRanksResponse
 from models.responses.level_scores_response import LevelScoresResponse, LevelScoresScore
 from transformers.ffr_chart_to_extended_chart import extend_ffr_chart
@@ -32,7 +33,7 @@ def _get_data(action: str, query_params: str):
     if (api_status is not None and api_status < 0):
         raise Exception(f'The api returned an error: {json_response["error"]}')
 
-    return json_response
+    return response.content
 
 def get_chart(args: ChartArgs):
     level_id = args.level
@@ -42,9 +43,7 @@ def get_chart(args: ChartArgs):
 
     try:
         response = _get_data(ApiAction.CHART.value, query_params)
-        response['chart'] = parse_chart_notes(response['chart'])
-
-        chart = ChartResponse.from_dict(response)
+        chart = decode(response, type=ChartResponse)
 
         if (extended):
             chart = extend_ffr_chart(chart)
@@ -52,7 +51,7 @@ def get_chart(args: ChartArgs):
         filename_extended = '/extended' if extended else ''
         filename_compressed = '/compressed' if compressed else ''
         filename = f'data/charts{filename_extended}{filename_compressed}/chart_{level_id}'
-        dict_data = chart.to_dict()
+        dict_data = decode(encode(chart))
 
         if compressed:
             write_compressed_json_to_file(dict_data, filename)
@@ -76,7 +75,7 @@ def get_level_ranks(args: LevelRanksArgs):
         query_params = f'username={args.username}'
 
     response = _get_data(ApiAction.LEVEL_RANKS.value, query_params)
-    return LevelRanksResponse.from_dict(response)
+    return decode(response, type=LevelRanksResponse)
 
 def get_level_scores(args: LevelScoresArgs):
     query_params = f'level={args.level}&page={args.page}&limit={args.limit}'
@@ -103,7 +102,7 @@ def _get_all_level_scores_internal(level_id: int, compressed: bool):
     def parse_page(page: int):
         query_params = f'level={level_id}&page={page}'
         response = _get_data(ApiAction.LEVEL_SCORES.value, query_params)
-        return LevelScoresResponse.from_dict(response)
+        return decode(response, type=LevelScoresResponse)
 
     try:
         parsed_page = parse_page(page_count)
@@ -118,7 +117,7 @@ def _get_all_level_scores_internal(level_id: int, compressed: bool):
         
         complete_level_scores = LevelScoresResponse(song_info, song_scores)
         filename = f'data/level_scores/scores_{song_info.id}'
-        dict_data = complete_level_scores.to_dict()
+        dict_data = decode(encode(complete_level_scores))
 
         if compressed:
             write_compressed_json_to_file(dict_data, filename)

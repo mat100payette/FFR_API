@@ -1,8 +1,6 @@
-from dataclasses import dataclass
-from dataclasses_json import DataClassJsonMixin
+from msgspec import Struct
 
-@dataclass
-class LevelScoresSong(DataClassJsonMixin):
+class LevelScoresSong(Struct):
     id: int
     songname: str
     note_count: int
@@ -10,8 +8,7 @@ class LevelScoresSong(DataClassJsonMixin):
     difficulty: int
     players: int
 
-@dataclass
-class LevelScoresScore(DataClassJsonMixin):
+class LevelScoresScore(Struct):
     id: int
     username: str
     perfect: int
@@ -25,7 +22,6 @@ class LevelScoresScore(DataClassJsonMixin):
     rank: int
     aaaeq: float
 
-@dataclass
-class LevelScoresResponse(DataClassJsonMixin):
+class LevelScoresResponse(Struct):
     song: LevelScoresSong
     scores: list[LevelScoresScore]

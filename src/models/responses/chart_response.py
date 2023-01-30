@@ -1,9 +1,6 @@
-from dataclasses import dataclass
-from typing import Union
-from dataclasses_json import DataClassJsonMixin
+from msgspec import Struct
 
-@dataclass
-class ChartInfo(DataClassJsonMixin):
+class ChartInfo(Struct):
     id: int
     name: str
     genre: int
@@ -13,18 +10,12 @@ class ChartInfo(DataClassJsonMixin):
     timestamp: int
     timestamp_format: str
 
-@dataclass
-class ChartNote(DataClassJsonMixin):
-    dir: int
+class ChartNote(Struct, array_like=True):
     frame: int
+    dir: int
     color: int
     ms: int
 
-@dataclass
-class ChartResponse(DataClassJsonMixin):
+class ChartResponse(Struct):
     info: ChartInfo
     chart: list[ChartNote]
-
-
-def parse_chart_notes(raw_notes: list[list[Union[str, int]]]):
-    return list(map(lambda raw_note: ChartNote(*raw_note), raw_notes))

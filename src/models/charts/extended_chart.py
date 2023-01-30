@@ -1,8 +1,6 @@
-from dataclasses import dataclass
-from dataclasses_json import DataClassJsonMixin
+from msgspec import Struct
 
-@dataclass
-class ChartInfo(DataClassJsonMixin):
+class ChartInfo(Struct):
     id: int
     name: str
     genre: int
@@ -12,22 +10,19 @@ class ChartInfo(DataClassJsonMixin):
     timestamp: int
     timestamp_format: str
 
-@dataclass
-class ChartNote(DataClassJsonMixin):
+class ChartNote(Struct, array_like=True):
     dir: str
     frame: int
     color: str
     ms: int
 
-@dataclass
-class ChartHit(DataClassJsonMixin):
+class ChartHit(Struct, array_like=True):
     hand: int
     finger: int
     ms: int
     gap: int
 
-@dataclass
-class ExtendedChart(DataClassJsonMixin):
+class ExtendedChart(Struct):
     info: ChartInfo
     chart: list[ChartNote]
     hits: list[ChartHit]

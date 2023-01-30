@@ -1,32 +1,27 @@
-from dataclasses import dataclass
+from msgspec import Struct
 
-@dataclass
-class ChartArgs:
+class ChartArgs(Struct):
     level: int
     compressed: bool
     extended: bool
 
-@dataclass
-class AllChartArgs:
+class AllChartArgs(Struct):
     start_id: int
     end_id: int
     compressed: bool
     extended: bool
 
-@dataclass
-class LevelScoresArgs:
+class LevelScoresArgs(Struct):
     level: int
     page: int
     limit: int
 
-@dataclass
-class AllLevelScoresArgs:
+class AllLevelScoresArgs(Struct):
     limit: int
     start_id: int
     end_id: int
     compressed: bool
 
-@dataclass
-class LevelRanksArgs:
+class LevelRanksArgs(Struct):
     userid: int = 0
     username: str = ''
