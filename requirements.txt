@@ -4,3 +4,4 @@ compress_json
 msgspec
 numpy
 pandas
+requests
