@@ -1,7 +1,8 @@
 argparse
 cache_to_disk
-compress_json
+lzma
 msgspec
 numpy
 pandas
 requests
+platformdirs

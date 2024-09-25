@@ -1,9 +1,18 @@
 from msgspec import Struct
 
+
+class ViewerArgs(Struct):
+    pass
+
+class SongListArgs(Struct):
+    pass
+
 class ChartArgs(Struct):
     level: int
     compressed: bool
     extended: bool
+    to_dir: str = ''
+    from_file: str = ''
 
 class AllChartArgs(Struct):
     start_id: int

@@ -2,26 +2,39 @@ import argparse
 from typing import Callable
 
 from models.api.api_action import ApiAction
-from models.api.api_action_args import AllChartArgs, AllLevelScoresArgs, ChartArgs, LevelScoresArgs
+from models.api.api_action_args import (
+    AllChartArgs,
+    AllLevelScoresArgs,
+    ChartArgs,
+    LevelScoresArgs,
+    ViewerArgs,
+)
+
 
 def parse_args(key_setter: Callable[[str], None]):
     parser = argparse.ArgumentParser(description='Args for API experiments.')
-    parser.add_argument('apikey', help='Your API key')
+    parser.add_argument('apikey', type=str, nargs=argparse.OPTIONAL, help='Your API key', default=None)
 
     # Add subparsers
 
     subparsers = parser.add_subparsers(dest='action', help='The params for your specific API action')
 
+    subparsers.add_parser(ApiAction.VIEWER.value, help='Interactive GUI')
+
     parser_chart = subparsers.add_parser(ApiAction.CHART.value, help='Chart parameters')
     parser_chart.add_argument('-level', '--L', type=int, help='The level from which to pull chart info', default=1)
     parser_chart.add_argument('-comp', '--C', type=bool, help='Compress output file', default=False, action=argparse.BooleanOptionalAction)
-    parser_chart.add_argument('-extended', '--X', type=int, help='Extended chart data', default=False, action=argparse.BooleanOptionalAction)
+    parser_chart.add_argument('-extended', '--X', type=bool, help='Extended chart data', default=False, action=argparse.BooleanOptionalAction)
+
+    parser_chart_group = parser_chart.add_mutually_exclusive_group()
+    parser_chart_group.add_argument('-todir', '--T', type=str, help='Directory to save the data to', nargs=argparse.OPTIONAL)
+    parser_chart_group.add_argument('-fromfile', '--F', type=str, help='File to load the data from', nargs=argparse.OPTIONAL)
 
     parser_all_charts = subparsers.add_parser(ApiAction.ALL_CHARTS.value, help='All charts parameters')
     parser_all_charts.add_argument('-startid', '--S', type=int, help='The song id to start from', default=1)
     parser_all_charts.add_argument('-endid', '--E', type=int, help='The song id to end before', default=10000)
     parser_all_charts.add_argument('-comp', '--C', type=bool, help='Compress output files', default=False, action=argparse.BooleanOptionalAction)
-    parser_all_charts.add_argument('-extended', '--X', type=int, help='Extended chart data', default=False, action=argparse.BooleanOptionalAction)
+    parser_all_charts.add_argument('-extended', '--X', type=bool, help='Extended chart data', default=False, action=argparse.BooleanOptionalAction)
 
     parser_level_scores = subparsers.add_parser(ApiAction.LEVEL_SCORES.value, help='Level scores parameters')
     parser_level_scores.add_argument('-level', '--L', type=int, help='The level from which to pull scores', default=1)
@@ -43,19 +56,27 @@ def parse_args(key_setter: Callable[[str], None]):
     
     action: str = parsed_args.action
 
+    if action != ApiAction.VIEWER.value and not api_key:
+        raise ValueError(f'API key is required for the {action} action.')
+
     # Create typed args object
 
-    if (action == ApiAction.CHART.value):
-        return ChartArgs(parsed_args.L, parsed_args.C, parsed_args.X)
+    match action:
+        case ApiAction.VIEWER.value:
+            return ViewerArgs()
 
-    if (action == ApiAction.ALL_CHARTS.value):
-        return AllChartArgs(parsed_args.S, parsed_args.E, parsed_args.C, parsed_args.X)
+        case ApiAction.CHART.value:
+            return ChartArgs(parsed_args.L, parsed_args.C, parsed_args.X, parsed_args.T, parsed_args.F)
 
-    if (action == ApiAction.LEVEL_SCORES.value):
-        return LevelScoresArgs(parsed_args.L, parsed_args.P, parsed_args.M)
+        case ApiAction.ALL_CHARTS.value:
+            return AllChartArgs(parsed_args.S, parsed_args.E, parsed_args.C, parsed_args.X)
 
-    if (action == ApiAction.ALL_LEVEL_SCORES.value):
-        return AllLevelScoresArgs(parsed_args.M, parsed_args.S, parsed_args.E, parsed_args.C)
+        case ApiAction.LEVEL_SCORES.value:
+            return LevelScoresArgs(parsed_args.L, parsed_args.P, parsed_args.M)
 
-    raise Exception(f'Unsupported api action "{action}"')
+        case ApiAction.ALL_LEVEL_SCORES.value:
+            return AllLevelScoresArgs(parsed_args.M, parsed_args.S, parsed_args.E, parsed_args.C)
+        
+        case _:
+            raise Exception(f'Unsupported api action "{action}"')
     

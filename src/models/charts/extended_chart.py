@@ -1,5 +1,6 @@
 from msgspec import Struct
 
+
 class ChartInfo(Struct):
     id: int
     name: str
@@ -11,9 +12,9 @@ class ChartInfo(Struct):
     timestamp_format: str
 
 class ChartNote(Struct, array_like=True):
-    dir: str
     frame: int
-    color: str
+    dir: int
+    color: int
     ms: int
 
 class ChartHit(Struct, array_like=True):
@@ -21,11 +22,13 @@ class ChartHit(Struct, array_like=True):
     finger: int
     ms: int
     gap: int
+    manip: int
 
 class ExtendedChart(Struct):
     info: ChartInfo
     chart: list[ChartNote]
     hits: list[ChartHit]
+    version: int
 
 
 def left_hand_hits(chart: ExtendedChart):
