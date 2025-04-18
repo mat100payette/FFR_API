@@ -1,5 +1,7 @@
 from msgspec import Struct
 
+from models.responses.chart_response import ChartNote
+
 
 class ChartInfo(Struct):
     id: int
@@ -11,11 +13,6 @@ class ChartInfo(Struct):
     timestamp: int
     timestamp_format: str
 
-class ChartNote(Struct, array_like=True):
-    frame: int
-    dir: int
-    color: int
-    ms: int
 
 class ChartHit(Struct, array_like=True):
     hand: int
@@ -23,6 +20,8 @@ class ChartHit(Struct, array_like=True):
     ms: int
     gap: int
     manip: int
+    spread_ms: int
+
 
 class ExtendedChart(Struct):
     info: ChartInfo
@@ -33,6 +32,7 @@ class ExtendedChart(Struct):
 
 def left_hand_hits(chart: ExtendedChart):
     return [hit for hit in chart.hits if hit.hand == 0]
+
 
 def right_hand_hits(chart: ExtendedChart):
     return [hit for hit in chart.hits if hit.hand == 1]

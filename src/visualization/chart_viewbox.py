@@ -2,93 +2,90 @@ import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.exporters import ImageExporter
 from pyqtgraph.Qt import QtCore, QtWidgets
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeyEvent
-from PySide6.QtWidgets import QLabel
 
 from utils.image import qimage_to_pil_image, stitch_images_vertically
-from visualization.ui_controllers import ArrowSizeController
+from visualization.ui_controllers import NoteSizeController, ScrollDirController
 
 
 class ChartViewBox(pg.ViewBox):
     _arrows_plot: pg.PlotItem | None
-    _shortcuts_label: QLabel | None
 
-    def __init__(self, arrow_size_controller: ArrowSizeController) -> None:
+    shortcuts_signal = Signal(bool)
+
+    def __init__(
+        self,
+        arrow_size_controller: NoteSizeController,
+        scroll_dir_controller: ScrollDirController,
+    ) -> None:
         super().__init__()
 
         self._arrows_plot = None
-        self._shortcuts_label = None
 
         self.arrow_size_controller = arrow_size_controller
+        self.scroll_dir_controller = scroll_dir_controller
 
     def set_arrows_plot(self, plot: pg.PlotItem):
         self._arrows_plot = plot
 
-    def set_shortcuts_label(self, shortcuts_label: QLabel):
-        self._shortcuts_label = shortcuts_label
-
-    # Overriding the wheel event to handle custom zooming behavior
     def wheelEvent(self, event: QtWidgets.QGraphicsSceneWheelEvent) -> None:
         modifiers: QtCore.Qt.KeyboardModifier = QtWidgets.QApplication.keyboardModifiers()
         delta: int = event.delta()
 
         if modifiers == QtCore.Qt.KeyboardModifier.AltModifier:
-            current_size: int = self.arrow_size_controller.arrow_size
+            current_size: int = self.arrow_size_controller.note_size
             if delta > 0:
                 # Increase arrow size
                 new_size = current_size + 1
             else:
                 # Decrease arrow size but ensure it's not too small
-                new_size = max(1, current_size - 1)  
+                new_size = max(1, current_size - 1)
 
-            self.arrow_size_controller.arrow_size = new_size
+            self.arrow_size_controller.note_size = new_size
 
         elif modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
             # Horizontal zoom (Ctrl + scroll)
-            if delta > 0:
-                # Zoom in horizontally
-                self.scaleBy((0.9, 1))
-            else:
-                # Zoom out horizontally
-                self.scaleBy((1.1, 1))
+            self.scaleBy((0.9, 1) if delta > 0 else (1.1, 1))
         else:
             # Vertical zoom (normal scroll)
-            if delta > 0:
-                # Zoom in vertically
-                self.scaleBy((1, 0.9))
-            else:
-                # Zoom out vertically
-                self.scaleBy((1, 1.1))
+            self.scaleBy((1, 0.9) if delta > 0 else (1, 1.1))
 
-    # Override key press event to show shortcuts or toggle views
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        if event.key() == Qt.Key.Key_F1:
-            self._shortcuts_label.setVisible(True)
-        elif event.key() == Qt.Key.Key_S:
+        modifiers: QtCore.Qt.KeyboardModifier = QtWidgets.QApplication.keyboardModifiers()
+        key = event.key()
+
+        if key == Qt.Key.Key_F1:
+            self.shortcuts_signal.emit(True)
+        elif key == Qt.Key.Key_S:
             self._save_entire_plot_as_image()
+        elif key == Qt.Key.Key_D and modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
+            self._toggle_scroll_dir()
         else:
             super().keyPressEvent(event)
 
-    # Override key release event to hide shortcuts when F1 is released
     def keyReleaseEvent(self, event: QKeyEvent) -> None:
-        if event.key() == Qt.Key.Key_F1:
-            self._shortcuts_label.setVisible(False)
+        key = event.key()
+
+        if key == Qt.Key.Key_F1:
+            self.shortcuts_signal.emit(False)
         else:
             super().keyReleaseEvent(event)
 
+    def _toggle_scroll_dir(self):
+        self.scroll_dir_controller.toggle_dir()
 
     def _save_entire_plot_as_image(self) -> None:
         """
         Save the entire plot (without padding) as an image while maintaining the current zoom level.
-        This version supports rendering and stitching together segments of the plot to cover all data at the current zoom..
+        This version supports rendering and stitching together segments of the plot to cover all data at the current zoom.
         """
         # Get the current view range (visible range)
         original_xrange, original_yrange = self.viewRange()
         parent_plotitem: pg.PlotItem = self.parentItem()
 
         # Get the current vertical axis ticks to ensure they stay consistent
-        vertical_axis: pg.AxisItem = parent_plotitem.getAxis('left')
+        vertical_axis: pg.AxisItem = parent_plotitem.getAxis("left")
         vertical_axis.hide()
 
         # Initialize overall bounds to capture the full data range
@@ -159,7 +156,7 @@ class ChartViewBox(pg.ViewBox):
         if not captured_chunks:
             print("Error: No image chunks were captured.")
             return
-        
+
         captured_chunks = captured_chunks[::-1]
 
         # Stitch the captured chunks into a final image

@@ -10,7 +10,7 @@ def manip_score_to_color(score: int) -> str:
     - 76-100 : Red
     - 100    : Purple
     """
-    
+
     if score <= 25:
         # White (255, 255, 255) to Green (0, 255, 0)
         normalized_score = score / 25  # Normalize between 0 and 25

@@ -5,7 +5,7 @@ from PySide6.QtGui import QImage
 
 def qimage_to_pil_image(qimage: QImage) -> Image.Image:
     """
-    Convert a PySide6.QtGui.QImage to a PIL.Image.Image.
+    Convert a `PySide6.QtGui.QImage` to a `PIL.Image.Image`.
     """
     # Ensure the QImage format is RGBA8888
     if qimage.format() != QImage.Format.Format_RGBA8888:
@@ -24,14 +24,12 @@ def qimage_to_pil_image(qimage: QImage) -> Image.Image:
     arr = arr[:, :width, :]
 
     # Create a PIL Image from the NumPy array
-    pil_image = Image.fromarray(arr, 'RGBA')
+    pil_image = Image.fromarray(arr, "RGBA")
 
     return pil_image
 
 
-def stitch_images_vertically(
-    images: list[Image.Image], image_width: int, image_height: int
-) -> Image.Image:
+def stitch_images_vertically(images: list[Image.Image], image_width: int, image_height: int) -> Image.Image:
     """
     Stitches images vertically.
     """
@@ -43,7 +41,7 @@ def stitch_images_vertically(
     images = images[::-1]
 
     # Create an empty canvas with a transparent background
-    stitched_image = Image.new('RGBA', (total_width, total_height), (255, 255, 255, 0))
+    stitched_image = Image.new("RGBA", (total_width, total_height), (255, 255, 255, 0))
 
     # Iterate through the images and place them in the final stitched image
     for i in range(num_images):

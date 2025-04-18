@@ -17,8 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from models.api.api_action_args import ChartArgs
-from services.api_service import get_chart
-from utils.chart_numpy import get_left_right_hits_data
+from services.ffr_api_service import get_chart
+from utils.chart_numpy import get_vectorized_per_hand_hits_data
 from utils.io import default_cache_path
 
 
@@ -162,7 +162,7 @@ class LoadChartDialog(QDialog):
         if self.api_radio.isChecked():
             # Load from API
             api_args = ChartArgs(level=chart_id, compressed=False, extended=True)
-            
+
             # Check if saving chart data is required
             if self.save_chart_data_checkbox.isChecked():
                 save_path = self.save_path_edit.text() or self.save_path_edit.placeholderText()
@@ -176,6 +176,6 @@ class LoadChartDialog(QDialog):
         chart = get_chart(api_args)
 
         # Process the chart data (both left and right hits)
-        left_hits_data, right_hits_data = get_left_right_hits_data(chart)
+        left_hits_data, right_hits_data = get_vectorized_per_hand_hits_data(chart)
 
         return left_hits_data, right_hits_data

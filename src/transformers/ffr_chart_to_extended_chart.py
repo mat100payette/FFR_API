@@ -1,9 +1,6 @@
 import numpy as np
 import pandas as pd
-import pulp
-from gekko import GEKKO
 from numpy.typing import NDArray
-from scipy.optimize import minimize
 
 from models.charts.extended_chart import ChartHit, ExtendedChart
 from models.responses.chart_response import ChartNote, ChartResponse
@@ -11,7 +8,8 @@ from utils.versioning import EXTENDED_CHART_VERSION
 
 
 def extend_ffr_chart(ffr_chart: ChartResponse):
-    return ExtendedChart(ffr_chart.info, ffr_chart.chart, compute_hits(ffr_chart), EXTENDED_CHART_VERSION)
+    hits = compute_hits(ffr_chart)
+    return ExtendedChart(ffr_chart.info, ffr_chart.chart, hits, EXTENDED_CHART_VERSION)
 
 
 def ffr_note_dir(note: ChartNote):
@@ -41,7 +39,7 @@ def compute_hits(ffr_chart: ChartResponse):
             ]
             for note in ffr_chart.chart
         ],
-        dtype=np.int32
+        dtype=np.int32,
     )
 
     pd_notes = pd.DataFrame(np_notes)
@@ -59,18 +57,23 @@ def compute_hits(ffr_chart: ChartResponse):
     left_hits_with_manip = get_manip_jumps_on_hand(left_hits)
     right_hits_with_manip = get_manip_jumps_on_hand(right_hits)
 
+    spread_left_hits = iterative_smoothing_projection(left_hits[:, 0])
+    spread_right_hits = iterative_smoothing_projection(right_hits[:, 0])
+
     # Append the data to get the correct format for ChartHit's
     extended_left_hits = np.c_[
         np.zeros(left_hits.shape[0], dtype=int).T,
         left_hits,
         np.diff(left_hits, axis=0, prepend=[[0, 0]])[:, 0],
-        left_hits_with_manip[:, 2]
+        left_hits_with_manip[:, 2],
+        spread_left_hits,
     ]
     extended_right_hits = np.c_[
         np.ones(right_hits.shape[0], dtype=int).T,
         right_hits,
         np.diff(right_hits, axis=0, prepend=[[0, 0]])[:, 0],
-        right_hits_with_manip[:, 2]
+        right_hits_with_manip[:, 2],
+        spread_right_hits,
     ]
 
     # Concat both hands sorted by time
@@ -78,14 +81,36 @@ def compute_hits(ffr_chart: ChartResponse):
     all_hits_sorted_time = all_hits[all_hits[:, 1].argsort()]
 
     return [
-        ChartHit(int(hand), int(finger), int(ms), int(gap), int(manip_score))
-        for (hand, ms, finger, gap, manip_score) in all_hits_sorted_time
+        ChartHit(int(hand), int(finger), int(ms), int(gap), int(manip_score), int(spread_ms))
+        for (hand, ms, finger, gap, manip_score, spread_ms) in all_hits_sorted_time
     ]
 
 
-def compute_time_score(
-    time_diff: NDArray[np.float32]
-) -> NDArray[np.float32]:
+def iterative_smoothing_projection(x: NDArray[np.int32], T: int = 50, iterations: int = 10) -> NDArray[np.float32]:
+    n = len(x)
+
+    # Start with original values clamped within bounds
+    lower = x - T
+    upper = x + T
+    current: NDArray[np.float32] = np.clip(np.linspace(x[0] - T, x[-1] + T, n), lower, upper)
+
+    for _ in range(iterations):
+        # Smooth with average of neighbors
+        smoothed = current.copy()
+        for i in range(1, n - 1):
+            smoothed[i] = (current[i - 1] + current[i + 1]) / 2
+        # Clamp again to legal bounds
+        smoothed = np.clip(smoothed, lower, upper)
+        # Ensure monotonicity via forward pass
+        for i in range(1, n):
+            if smoothed[i] < smoothed[i - 1]:
+                smoothed[i] = smoothed[i - 1]
+        current = smoothed
+
+    return current.round().astype(np.int32)
+
+
+def compute_time_score(time_diff: NDArray[np.float32]) -> NDArray[np.float32]:
     # Logistic function parameters
     midpoint = 55.0
     steepness = 0.1
@@ -111,8 +136,6 @@ def compute_alternating_penalties(
         has_prev: bool = i > 0
         has_next_next: bool = i + 2 < len(times)
         has_prev_prev: bool = i > 1
-        has_next_next_next: bool = i + 3 < len(times)
-        has_prev_prev_prev: bool = i > 2
 
         # Check current and next input columns
         current_col = columns[i]
@@ -130,10 +153,10 @@ def compute_alternating_penalties(
         next_next_time = times[i + 2] if has_next_next else None
 
         # Time differences
-        time_diff_prev_prev = prev_time - prev_prev_time if has_prev_prev else float('inf')
-        time_diff_prev_curr = current_time - prev_time if has_prev_prev else float('inf')
+        time_diff_prev_prev = prev_time - prev_prev_time if has_prev_prev else float("inf")
+        time_diff_prev_curr = current_time - prev_time if has_prev_prev else float("inf")
         time_diff_curr_next = next_time - current_time
-        time_diff_next_next = next_next_time - next_time if has_next_next else float('inf')
+        time_diff_next_next = next_next_time - next_time if has_next_next else float("inf")
 
         # Initialize triplet check variables
         triplets = []
@@ -210,9 +233,7 @@ def compute_alternating_penalties(
 
 
 def adjust_scores_with_nearby_max(
-    scores_array: NDArray[np.int8],
-    times: NDArray[np.int32],
-    columns: NDArray[np.int8]
+    scores_array: NDArray[np.int8], times: NDArray[np.int32], columns: NDArray[np.int8]
 ) -> tuple[NDArray[np.int8], NDArray[np.int8]]:
     updated_scores = np.copy(scores_array)
     increments = np.zeros_like(scores_array, dtype=np.int8)
@@ -283,10 +304,7 @@ def get_manip_jumps_on_hand(
 
     time_diffs = np.diff(times).astype(np.int16)
 
-    column_pair_mask = (
-        ((columns[:-1] == 1) & (columns[1:] == 2)) |
-        ((columns[:-1] == 2) & (columns[1:] == 1))
-    )
+    column_pair_mask = ((columns[:-1] == 1) & (columns[1:] == 2)) | ((columns[:-1] == 2) & (columns[1:] == 1))
     valid_candidates_mask = (time_diffs <= threshold) & column_pair_mask
     candidate_indices = np.where(valid_candidates_mask)[0]
 
@@ -308,196 +326,8 @@ def get_manip_jumps_on_hand(
 
     final_scores_int = np.round(final_scores * 100).astype(np.int8)
 
-    #scores_array, increments = adjust_scores_with_nearby_max(scores_array, times, columns)
+    # scores_array, increments = adjust_scores_with_nearby_max(scores_array, times, columns)
 
     data_with_scores = np.column_stack((times, columns, final_scores_int))
 
-    times_of_interest = [47266, 47400, 62066, 113333, 113500, 113633, 113800, 113933]
-    print("Time\tColumn\tScore")
-    for row in data_with_scores:
-        if row[0] in times_of_interest:
-            print(f"{row[0]}\t{row[1]}\t{row[2]}")
-
     return data_with_scores
-    
-
-# Each hit is a ndarray of [ms, finger-type]
-def test_hit_optimization(
-    hand_hits_with_gaps: np.ndarray, weight_variance=1.0, weight_average=0.8
-):
-    ms_data = hand_hits_with_gaps[:, 0]
-
-    def objective_function(ms_data: np.ndarray):
-        gaps = np.diff(np.around(ms_data).astype(int))
-
-        # Get gaps variance, we want the gaps to be as uniform as possible.
-        gaps_variance = np.var(gaps)
-
-        # Get gaps average, we want to maximize the gaps size.
-        gaps_average = np.mean(gaps)
-
-        return weight_variance * gaps_variance - weight_average * gaps_average
-
-    bounds = [(ms - 50, ms + 50) for ms, _ in hand_hits_with_gaps]
-
-    def order_constraint(ms):
-        return np.diff(ms)
-
-    constraints = [{"type": "ineq", "fun": order_constraint}]
-
-    result: np.ndarray = minimize(
-        objective_function, ms_data, bounds=bounds, constraints=constraints
-    )
-
-    optimized_array = result.x.astype(int)
-
-    a = {
-        "Initial Labeled Data": hand_hits_with_gaps,
-        "Optimized Labeled Data": result,
-        "Initial Gaps": np.diff(hand_hits_with_gaps[:, 0]),
-        "Optimized Gaps": np.diff(optimized_array),
-        "Variance of Initial Gaps": np.var(np.diff(hand_hits_with_gaps[:, 0])),
-        "Variance of Optimized Gaps": np.var(np.diff(optimized_array)),
-        "Average Gap of Initial Gaps": np.mean(np.diff(hand_hits_with_gaps[:, 0])),
-        "Average Gap of Optimized Gaps": np.mean(np.diff(optimized_array)),
-    }
-    b = 1
-
-
-# Each hit is a ndarray of [ms, finger-type]
-def test_hit_optimization_pulp(
-    hand_hits_with_gaps: np.ndarray, weight_variance=1.0, weight_average=1.0
-):
-    ms_data = hand_hits_with_gaps[:, 0]
-    print('[')
-    for a in np.diff(ms_data):
-        print(f'{a},')
-    print(']')
-
-    # X = np.sort(np.random.randint(0, 2_000_000, size=3000))
-    X1 = np.sort(np.random.randint(0, 100, size=20))
-    # X = np.sort(np.random.randint(0, 100, size=20))
-    X = np.array([100, 200, 250, 300, 301]).astype(int)
-    #X = ms_data.astype(int)
-
-    prob = pulp.LpProblem("stretch", pulp.LpMinimize)
-
-    # amounts to add to each variable (to be computed):
-    variables = [
-        pulp.LpVariable(f"x{i:04}", lowBound=-50, upBound=50, cat="Integer")
-        for i, v in enumerate(X)
-    ]
-
-    maximize_average_gap_size = pulp.LpVariable("maximize_average_gap_size")
-    minimize_variance = pulp.LpVariable("minimize_variance")
-
-    # out problem: miniminize variance and maximize gap size
-    prob += (minimize_variance * weight_variance) - (maximize_average_gap_size * weight_average)
-
-    gaps = [
-        ((X[idx] + variables[idx]) - (X[idx - 1] + variables[idx - 1]))
-        for idx in range(1, len(variables))
-    ]
-    mean_gaps = pulp.lpSum(gaps) / len(gaps)
-
-    # define "maximize_average_gap_size"
-    prob += maximize_average_gap_size == mean_gaps
-
-    abs_minimize_variance = pulp.LpVariable("minimize_variance")
-
-    abs_vars = []
-    for i, g in enumerate(gaps):
-        abs_var = pulp.LpVariable(f"abs_var_{i:04}")
-        prob += (g - mean_gaps) <= abs_var
-        prob += -(g - mean_gaps) <= abs_var
-        abs_vars.append(abs_var)
-
-    # define "minimize_variance" (as sum of absolute values)
-    prob += minimize_variance == pulp.lpSum(abs_vars)
-
-    # constraint: every next value after adding has to be greater or equal than before
-    for idx in range(1, len(variables)):
-        prob += (X[idx - 1] + variables[idx - 1]) <= (X[idx] + variables[idx])
-
-    prob.solve()
-
-    # print(pulp.LpStatus[prob.status])
-    # for v in prob.variables():
-    #     print(v.name, "=", v.varValue)
-
-    print("BEFORE:")
-    print(X)
-
-    gaps_before = np.diff(X)
-    print(f"{np.var(gaps_before)=}")
-    print(f"{np.mean(gaps_before)=}")
-    print(f"{np.min(gaps_before)=}")
-
-    print("AFTER:")
-    after = [int(x + v.value()) for x, v in zip(X, variables)]
-    print(after)
-    gaps_after = np.diff(after)
-    print(f"{np.var(gaps_after)=}")
-    print(f"{np.mean(gaps_after)=}")
-    print(f"{np.min(gaps_after)=}")
-
-
-
-
-
-def stretch_optimization(
-    initial_array: np.ndarray, weight_variance=1.0, weight_average=0.1, chunk_size=100
-):
-    # Initialize GEKKO model
-    m = GEKKO(remote=False)
-
-    # Extract the initial values
-    ms_data = initial_array[:, 0]
-    n = len(ms_data)
-
-    # Create integer variables for each data point within the given bounds
-    x = [
-        m.Var(
-            value=int(ms_data[i]), lb=ms_data[i] - 50, ub=ms_data[i] + 50, integer=True
-        )
-        for i in range(n)
-    ]
-
-    # Constraint: Ensure the integers remain in increasing order
-    for i in range(1, n):
-        m.Equation(x[i] >= x[i - 1])
-
-    # Calculate the gaps between consecutive values
-    gaps = [m.Intermediate(x[i + 1] - x[i]) for i in range(n - 1)]
-
-    # Mean of the gaps
-    mean_gap = m.Intermediate(sum(gaps) / (n - 1))
-
-    # Chunk-wise variance calculation
-    variance = m.Var()
-
-    # Break the variance summation into chunks
-    squared_diffs = []
-    for i in range(0, len(gaps), chunk_size):
-        chunk = gaps[i : i + chunk_size]
-        chunk_squared_diffs = [m.Intermediate((g - mean_gap) ** 2) for g in chunk]
-        squared_diffs.append(m.Intermediate(sum(chunk_squared_diffs)))
-
-    # Sum all chunked results and divide by total number of gaps
-    variance_eq = m.Intermediate(sum(squared_diffs) / (n - 1))
-
-    m.Equation(variance == variance_eq)
-
-    # Average gap (mean)
-    avg_gap = m.Var()
-    m.Equation(avg_gap == mean_gap)
-
-    # Objective function: Minimize variance and maximize average gap
-    m.Obj(weight_variance * variance - weight_average * avg_gap)
-
-    # Solve the optimization problem
-    m.solve(disp=True)  # Enable solver output for tracking
-
-    # Get optimized values
-    optimized_values = [int(var.VALUE.value[0]) for var in x]
-    return optimized_values

@@ -1,8 +1,13 @@
 argparse
 cache_to_disk
-lzma
 msgspec
 numpy
 pandas
 requests
 platformdirs
+pyqtgraph
+PySide6
+pulp
+gekko
+scipy
+pillow

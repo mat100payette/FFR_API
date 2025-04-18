@@ -11,13 +11,15 @@ from models.charts.extended_chart import (
 def _hand_data_from_hits(hits: list[ChartHit]):
     # Extract ms, finger (columns), and manip score for the given hand hits
     ms_values = np.array([hit.ms for hit in hits], dtype=np.int32)
+    ms_spread_values = np.array([hit.spread_ms for hit in hits], dtype=np.int32)
     hand_columns = np.array([hit.finger for hit in hits], dtype=np.int8)
     manip_scores = np.array([hit.manip for hit in hits], dtype=np.int8)
-    
-    # Stack them together as a 2D array: each row [ms, column, manip_score]
-    return np.column_stack((ms_values, hand_columns, manip_scores))
 
-def get_left_right_hits_data(chart: ExtendedChart):
+    # Stack them together as a 2D array: each row [ms, spread_ms, column, manip_score]
+    return np.column_stack((ms_values, ms_spread_values, hand_columns, manip_scores))
+
+
+def get_vectorized_per_hand_hits_data(chart: ExtendedChart):
     # Get hits for each hand
     left_hits = left_hand_hits(chart)
     right_hits = right_hand_hits(chart)

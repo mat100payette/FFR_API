@@ -1,5 +1,6 @@
 from msgspec import Struct
 
+
 class LevelScoresSong(Struct):
     id: int
     songname: str
@@ -7,6 +8,7 @@ class LevelScoresSong(Struct):
     time: str
     difficulty: int
     players: int
+
 
 class LevelScoresScore(Struct):
     id: int
@@ -21,6 +23,7 @@ class LevelScoresScore(Struct):
     user_level: float
     rank: int
     aaaeq: float
+
 
 class LevelScoresResponse(Struct):
     song: LevelScoresSong
