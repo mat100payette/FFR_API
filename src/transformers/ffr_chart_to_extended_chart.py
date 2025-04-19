@@ -2,14 +2,16 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from models.charts.extended_chart import ChartHit, ExtendedChart
+from models.charts.extended_chart import ChartHit, ExtendedChart, ManipCorrectedHit, ManipCorrectedHitWithTransition
 from models.responses.chart_response import ChartNote, ChartResponse
 from utils.versioning import EXTENDED_CHART_VERSION
 
 
 def extend_ffr_chart(ffr_chart: ChartResponse):
     hits = compute_hits(ffr_chart)
-    return ExtendedChart(ffr_chart.info, ffr_chart.chart, hits, EXTENDED_CHART_VERSION)
+    manip_corrected_hits = compute_manip_corrected_hits(hits)
+    manip_corr_hits_with_transition = compute_hit_transitions(manip_corrected_hits)
+    return ExtendedChart(ffr_chart.info, ffr_chart.chart, hits, manip_corr_hits_with_transition, EXTENDED_CHART_VERSION)
 
 
 def ffr_note_dir(note: ChartNote):
@@ -26,6 +28,18 @@ def ffr_note_hand(note: ChartNote):
 
 def ffr_note_finger(note: ChartNote):
     return ffr_note_dir(note) % 2
+
+
+def classify_transition_code(prev: ManipCorrectedHit, curr: ManipCorrectedHit) -> int:
+    if prev.finger != 3 and curr.finger != 3:
+        return 0 if prev.finger != curr.finger else 1
+    elif prev.finger == 3 and curr.finger != 3:
+        return 2
+    elif prev.finger != 3 and curr.finger == 3:
+        return 3
+    elif prev.finger == 3 and curr.finger == 3:
+        return 4
+    return -1  # unknown
 
 
 def compute_hits(ffr_chart: ChartResponse):
@@ -331,3 +345,125 @@ def get_manip_jumps_on_hand(
     data_with_scores = np.column_stack((times, columns, final_scores_int))
 
     return data_with_scores
+
+
+def compute_manip_corrected_hits(hits: list[ChartHit]) -> list[ManipCorrectedHit]:
+    all_corrected: list[ManipCorrectedHit] = []
+
+    for hand in [0, 1]:
+        hand_hits = [h for h in hits if h.hand == hand]
+        if not hand_hits:
+            continue
+
+        hand_hits.sort(key=lambda h: h.ms)
+
+        ms = np.array([h.ms for h in hand_hits], dtype=np.int32)
+        raw_finger = np.array([h.finger for h in hand_hits], dtype=np.int8)
+        manip = np.array([h.manip for h in hand_hits], dtype=np.int8)
+
+        n = len(ms)
+        keep_mask = np.ones(n, dtype=bool)
+
+        compress_mask = manip[:-1] > 50
+        compress_indices = np.where(compress_mask)[0]
+
+        # Compute values for compressed pairs
+        compressed_ms = (ms[compress_indices] + ms[compress_indices + 1]) // 2
+        compressed_overlap = np.clip(
+            np.minimum(ms[compress_indices] + 50, ms[compress_indices + 1] + 50)
+            - np.maximum(ms[compress_indices] - 50, ms[compress_indices + 1] - 50),
+            0,
+            100,
+        )
+
+        # Prepare full arrays
+        final_ms = ms.copy()
+        final_precision = np.full(n, 100, dtype=np.int32)
+        final_finger = np.where(raw_finger >= 2, 3, raw_finger + 1)
+
+        # Apply compressed values to the compressed positions
+        final_ms[compress_indices] = compressed_ms
+        final_precision[compress_indices] = compressed_overlap
+        final_finger[compress_indices] = 3
+
+        # Skip the second hit in each compressed pair
+        keep_mask[compress_indices + 1] = False
+
+        # Filter to kept hits
+        kept_indices = np.where(keep_mask)[0]
+        kept_ms = final_ms[kept_indices]
+        kept_precision = final_precision[kept_indices]
+        kept_finger = final_finger[kept_indices]
+
+        # Compute gaps
+        gaps = np.empty_like(kept_ms)
+        gaps[0] = kept_ms[0]
+        gaps[1:] = kept_ms[1:] - kept_ms[:-1]
+
+        corrected = [
+            ManipCorrectedHit(
+                hand=hand,
+                finger=int(kept_finger[i]),
+                ms=int(kept_ms[i]),
+                gap=int(gaps[i]),
+                precision=int(kept_precision[i]),
+            )
+            for i in range(len(kept_ms))
+        ]
+
+        all_corrected.extend(corrected)
+
+    return all_corrected
+
+
+def compute_hit_transitions(hits: list[ManipCorrectedHit]) -> list[ManipCorrectedHitWithTransition]:
+    if not hits:
+        return []
+
+    # Split and sort by hand
+    hands = np.array([h.hand for h in hits])
+    fingers = np.array([h.finger for h in hits])
+    ms = np.array([h.ms for h in hits])
+    gaps = np.array([h.gap for h in hits])
+    precisions = np.array([h.precision for h in hits])
+
+    result_transitions = np.full(len(hits), -1, dtype=int)
+
+    for hand in [0, 1]:
+        mask = hands == hand
+        indices = np.where(mask)[0]
+        if len(indices) < 2:
+            continue
+
+        # Sort hand-specific hits by time
+        sorted_idx = indices[np.argsort(ms[indices])]
+        f = fingers[sorted_idx]
+
+        # Shift arrays
+        f1 = f[:-1]
+        f2 = f[1:]
+        transitions = np.full(len(f1), -1, dtype=int)
+
+        # Apply rules
+        transitions[(f1 != 3) & (f2 != 3) & (f1 != f2)] = 0  # trill
+        transitions[(f1 != 3) & (f2 != 3) & (f1 == f2)] = 1  # jack
+        transitions[(f1 == 3) & (f2 != 3)] = 2  # jump to single
+        transitions[(f1 != 3) & (f2 == 3)] = 3  # single to jump
+        transitions[(f1 == 3) & (f2 == 3)] = 4  # jumpstream
+
+        result_transitions[sorted_idx[:-1]] = transitions
+
+    # Pack result
+    result = [
+        ManipCorrectedHitWithTransition(
+            hand=int(hands[i]),
+            finger=int(fingers[i]),
+            ms=int(ms[i]),
+            gap=int(gaps[i]),
+            precision=int(precisions[i]),
+            transition=int(result_transitions[i]),
+        )
+        for i in range(len(hits))
+    ]
+
+    return result
