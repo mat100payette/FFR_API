@@ -14,14 +14,16 @@ This document will assume that style of play as it has stood the test of time in
 
 ## Definitions
 
-### Chart and hits
+Let's define some core concepts in order to be able to formalize the meaning of "difficulty" in FFR.
 
-Lets define some core concepts in order to formalize the meaning of "difficulty" in FFR.
+### Chart
+
+#### Hit-based
 
 Let the following be a chart made of $n$ **hits**:
 
 $$
-C=[x_1, x_2, \dots, x_n]
+C=[x_0, x_1, x_2, \dots, x_{n-1}]
 $$
 
 $$
@@ -50,16 +52,123 @@ $$
 We will make the trivial assumption, for simplicity, that the hits are ordered by time:
 
 $$
-\forall i\in[0, n-1],\ \pi_m(x_i) \leq \pi_m(x_{i+1})
+\forall i\in[0, n-2],\ \pi_m(x_i) \leq \pi_m(x_{i+1})
 $$
 
-This definition of a chart is not the only one; there are other representations that allow different mathematical manipulations. One particularly helpful result of this definition is that it allows for easier representation of **same-hand** elements, which can be isolated from **both-hands** elements. This is especially practical for evaluating spread-specific ergonomy, as each hand has a certain degree of independence while the 2 fingers on a given hand are much less independent mechanically. A hit being represented as $(m, h, r)$ is therefore a natural consequence of the assumption of spread style, as it basically encodes an atomic mechanical movement made by the player.
+Also, since some elements defined below are based on the relationship between two consecutive hits, let's denote the set of "all hits in a chart except the last hit" as follows for simplicity:
+
+$$
+C^*=[x_0, x_1, x_2, \dots, x_{n-2}]
+$$
+
+This hit-based definition of a chart is not the only one; there are other representations that allow different mathematical manipulations. One particularly helpful result of this definition is that it allows for easier representation of **same-hand** elements, which can be isolated from **both-hands** elements. This is especially practical for evaluating spread-specific ergonomy, as each hand has a certain degree of independence while the 2 fingers on a given hand are much less independent mechanically. A hit being represented as $(m, h, r)$ is therefore a natural consequence of the assumption of spread style, as it basically encodes an atomic mechanical movement made by the player.
+
+#### Note-based
+
+Another chart representation that will also be useful is the following:
+
+$$
+\Phi = [\nu_0, \nu_1, \nu_2, \cdots, \nu_{\eta-1}]
+$$
+
+$$
+\nu = (m, l)
+$$
+
+This representation denotes a chart $\Phi$ as a sequence of $\eta$ **notes**. Each note $\nu$ is a simple tuple of the following values:
+
+- $m \in [0, \infin]$ is the millisecond timing of the note relative to the start of the song. This is identical to the $m$ value of a hit.
+
+- $l \in \{1, 2, 3, 4\}$ denotes the **lane** of the note. More visually, each value represents a finger in a spread playstyle setup from left to right. As an example, with key bindings "ASKL", $1$ would be "A", $2$ would be "S", $3$ would be "K" and $4$ would be "L".
+
+Again, let's define selectors for these values:
+
+$$
+\pi_m(\nu_i) = m_i,\quad \pi_l(\nu_i) = l_i
+$$
+
+While the hit-based representation is particularly helpful for formalizing concepts that are more centered around ergonomy of play, this note-based one will be helpful for concepts that are more related to the game's specific mechanics.
+
+#### Equivalency of representations
+
+To ensure that all definitions derived from either representation is applicable to the other, there needs to be a formal mapping between the two.
+
+Let's first define special selectors of a note that return elements of a hit:
+
+$$
+\Pi_m(\nu) = \pi_m(\nu)
+$$
+
+$$
+\Pi_h(\nu) =
+\begin{cases}
+1 & \text{if}\quad \pi_l(\nu) \in \{1, 2\}\quad \text{(left hand)} \\
+2 & \text{if}\quad \pi_l(\nu) \in \{3, 4\}\quad \text{(right hand)}
+\end{cases}
+$$
+
+$$
+\Pi_r(\nu) =
+\begin{cases}
+1 & \text{if}\quad \pi_l(\nu) \in \{1, 3\}\quad \text{(left finger of hand)} \\
+2 & \text{if}\quad \pi_l(\nu) \in \{2, 4\}\quad \text{(right finger of hand)}
+\end{cases}
+$$
+
+Then, the selectors of a hit that return elements of a note:
+
+$$
+\Pi_m(x) = \pi_m(x)
+$$
+
+$$
+\Pi_l(x) =
+\begin{cases}
+\{1\} & \text{if}\quad \pi_h(x) = 1\quad \text{and}\quad \pi_r(x) = 1 \\
+\{2\} & \text{if}\quad \pi_h(x) = 1\quad \text{and}\quad \pi_r(x) = 2 \\
+\{3\} & \text{if}\quad \pi_h(x) = 2\quad \text{and}\quad \pi_r(x) = 1 \\
+\{4\} & \text{if}\quad \pi_h(x) = 2\quad \text{and}\quad \pi_r(x) = 2 \\
+\{1, 2\} & \text{if}\quad \pi_h(x) = 1\quad \text{and}\quad \pi_r(x) = 3 \\
+\{3, 4\} & \text{if}\quad \pi_h(x) = 2\quad \text{and}\quad \pi_r(x) = 3 \\
+\end{cases}
+$$
+
+Using all these selectors, let's now define mappings of hits to notes and vice versa.
+
+##### Hits to notes
+
+The mapping from hits to notes can result in either one or two notes depending on if the finger type of the hit is a single ($1$ or $2$) or a jump ($3$):
+
+$$
+\nu(x) = \forall k \in \Pi_l(x),\space (\Pi_m(x), k)
+$$
+
+##### Notes to hits
+
+The opposite mapping however (from notes to hits) is slightly less straightforward due to the possibility of having to merge pairs of notes that would result in a singular jump hit.
+
+Let the following set $\Phi_t$ be the set of all notes in chart $\Phi$ that have a millisecond timing $t$, where $t$ is taken from the set of all unique timings of the chart's notes:
+
+$$
+\Phi_m = \{\nu \in \Phi \mid \pi_m(\nu) = t\},\space t \in \{\pi_m(\nu) \mid \nu \in \Phi\}
+$$
+
+With that, it becomes possible to map 
+
+$$
+x(\nu) =
+\begin{cases}
+(\Pi_m(\nu), \Pi_h(\nu), \Pi_r(\nu)) & \text{if } \Phi_m = \{(m, l)\} \\
+(m, \pi_h(l), 3) & \text{if } \Phi_m = \{(m, l_1), (m, l_2)\},\ \pi_h(l_1) = \pi_h(l_2) \\
+\{(m, \pi_h(l_1), \pi_r(l_1)),\ (m, \pi_h(l_2), \pi_r(l_2))\} & \text{if } \pi_h(l_1) \ne \pi_h(l_2)
+\end{cases}
+$$
 
 ---
 
 ### Same-hand elements
 
-We can now define some of those same-hand elements in order to facilitate the formalizing of features that pertain to only the sequence of hits on a given hand.
+We can now define some important same-hand elements in order to facilitate the formalizing of features that pertain to only the sequence of hits on a given hand.
 
 Let the following be the subset of all hits in a chart that are on the hand $h$:
 
@@ -71,15 +180,9 @@ $$
 n_h = |C_h|
 $$
 
-Also, since some elements are based on the relationship between two consecutive hits, lets denote the set of "all hits in a chart except the last hit" as follows for simplicity:
-
-$$
-C^*=[x_1, x_2, \dots, x_{n-1}]
-$$
-
 #### Gap value
 
-Let the following be the "gap" value $g$, representing the millisecond difference between two consecutive hits on a given hand:
+Let the following be the **gap** value $g$, representing the millisecond difference between two consecutive hits on a given hand:
 
 $$
 \forall x \in C_h^*,\ g_i = \pi_{g, h}(x_i) = \pi_m(C_h[i]) - \pi_m(C_h[i-1])
@@ -95,7 +198,7 @@ This element is very important because the time between two hits on a given hand
 
 #### Hit transition
 
-Next, lets define the "type" of transition between two consecutive same-hand hits as the following:
+Next, let's define the "type" of transition between two consecutive same-hand hits as the following:
 
 $$
 r_{h,i} = \pi_r(C_h^*[i])
@@ -103,13 +206,13 @@ $$
 
 $$
 t_i = \begin{cases}
-0 & \text{if}\ \  r_{h,i} \in \{1, 2\},\ r_{h,i+1} \in \{1, 2\},\ r_{h,i} \ne r_{h,i+1} \\
-1 & \text{if}\ \  r_{h,i} \in \{1, 2\},\ r_{h,i+1} \in \{1, 2\},\ r_{h,i} = r_{h,i+1} \\
-2 & \text{if}\ \  r_{h,i} = 3,\ r_{h,i+1} = 1 \\
-3 & \text{if}\ \  r_{h,i} = 3,\ r_{h,i+1} = 2 \\
-4 & \text{if}\ \  r_{h,i} = 1,\ r_{h,i+1} = 3 \\
-5 & \text{if}\ \  r_{h,i} = 2,\ r_{h,i+1} = 3 \\
-6 & \text{if}\ \ r_{h,i} = 3,\ r_{h,i+1} = 3
+0 & \text{if}\quad r_{h,i} \in \{1, 2\},\ r_{h,i+1} \in \{1, 2\},\ r_{h,i} \ne r_{h,i+1} \\
+1 & \text{if}\quad r_{h,i} \in \{1, 2\},\ r_{h,i+1} \in \{1, 2\},\ r_{h,i} = r_{h,i+1} \\
+2 & \text{if}\quad r_{h,i} = 3,\ r_{h,i+1} = 1 \\
+3 & \text{if}\quad r_{h,i} = 3,\ r_{h,i+1} = 2 \\
+4 & \text{if}\quad r_{h,i} = 1,\ r_{h,i+1} = 3 \\
+5 & \text{if}\quad r_{h,i} = 2,\ r_{h,i+1} = 3 \\
+6 & \text{if}\quad r_{h,i} = 3,\ r_{h,i+1} = 3
 \end{cases}
 $$
 
@@ -119,7 +222,7 @@ $$
 
 Again, note that the transition value for the last hit is set at $-1$ as an arbitrary value, since there is no subsequent hit to transition to.
 
-This element allows to factor in the different ways a hand can move when transitioning from one hit to the next. It is a widely accepted fact that each type of transition has different implications regarding perceived difficulty, although the exact shape and values for these implications are unknown and not necessarily unanimously agree upon.
+This element allows to factor in the different ways a hand can move when transitioning from one hit to the next. It is a widely accepted fact that each type of transition has different implications regarding perceived difficulty, although the exact shape and values for these implications are unknown and not necessarily unanimously agreed upon.
 
 Here's what each transition value means in words:
 
@@ -138,9 +241,9 @@ Here's what each transition value means in words:
 
 Note that:  
 
-\* The word "trill" is slightly overloaded there, as it is generally known to mean _multiple_ such transitions in a row. For now, lets just allow a single such transition to also be labeled that way. More specific contextual terminology will be introduced later if necessary.
+\* The word "trill" is slightly overloaded there, as it is generally known to mean _multiple_ such transitions in a row. For now, let's just allow a single such transition to also be labeled that way. More specific contextual terminology will be introduced later if necessary.
 
-\*\* Similarly, "jack" is generally known to mean _multiple_ such transitions. Lets accept a singular one to also be labeled that way.
+\*\* Similarly, "jack" is generally known to mean _multiple_ such transitions. Let's accept a singular one to also be labeled that way.
 
 ---
 
@@ -156,13 +259,21 @@ $$
 
 The shape of this difficulty function is likely very complicated and probably contains a fair amount of hyperparameters that would attempt to reflect the intricacies of the various human biomechanical aspects of the spread playstyle. Such hyperparameters aren't the focus of this document, however it's good to keep in mind that they're somewhat at the root of a lot of debates over how different aspects of difficulty interact together mathematically and intuitively.
 
+---
+
+### Scoring
+
+It is essential to formally define FFR's scoring system so that we can relate the difficulty concepts to the players' goal during gameplay. Nowadays, and for many years now, that scoring system has been an accuracy based one where the players attempt to get a "AAA" or as close to it as they can.
+
 ## Axioms
 
-Over the years, there have been many lengthy discussions and debates over how to approach the automatic computation of a chart's difficulty.
+Over the years, there have been many lengthy discussions and debates over how to approach the automatic computation of a chart's difficulty. Due to the lack of extensive tooling and proper formalization of the problem, most of these debates would end in a dead end; the intricacies are simply too complex to discuss just in a casual conversation without eventually having inconsistent statements.
+
+In order to build a foundation for those debates in a more formal setting, this section introduces some axioms that should _always_ hold regardless of the approach taken to implement a difficulty calculator. These axioms are based on concepts that are considered as universally true and agreed upon by essentially any knowledgeable player.
 
 ### Axiom 1: Monotonicity of Jack-like Transitions
 
-For any chart consisting of a sequence of notes all on the same hand, with identical gap $g$ and a fixed set of jack-like transitions, the difficulty must strictly decrease as the gap increases.
+For any chart consisting of a sequence of hits all on the same hand, with identical gap $g$ and a fixed set of jack-like transitions, the difficulty must strictly decrease as the gap increases.
 
 That is, shorter gaps are always more difficult for constant jack-like motion patterns.
 
@@ -177,13 +288,13 @@ $$
 \forall g_1, g_2\in[1, \infin]\ ,g_1<g_2 \Rightarrow D_T(g_1) > D_T(g_2)
 $$
 
-## Axiom 2: Monotonicity of Alternating Singles with Gap > 100ms
+### Axiom 2: Monotonicity of Alternating Singles with Gap > 100ms
 
 For any chart consisting of a sequence of alternating singles, so constant transition type $t=0$, all on the same hand, with a fixed gap $g > 100$ ms, the difficulty must strictly decrease as the gap increases.
 
 That is, as alternating notes approach the manipulation threshold of 100ms, the difficulty increases. As they move further apart, the difficulty decreases.
 
-### Formally
+#### Formally
 
 Let $D_t(g)$ be the difficulty of a chart with alternating singles at gap $g$. Then:
 
@@ -191,13 +302,13 @@ $$
 \forall g_1,g_2\in[100, \infin]\ ,g_1<g_2\Rightarrow D_t(g_1)>D_t(g_2)
 $$
 
-## Axiom 3: Monotonicity of Repetition
+### Axiom 3: Monotonicity of Repetition
 
 For any chart consisting of a sequence of a single transition type (or a consistent alternating motion such as $T = [2, 3, 2, 3, ...]$) with fixed gap $g$, the difficulty must strictly increase as the number of repeated transitions increases.
 
 That is, longer repetitive motions (e.g., 20-note jacks) are always more difficult than shorter ones (e.g., 10-note jacks), assuming the motion type and gap are the same.
 
-### Formally
+#### Formally
 
 Let $D_t(g, n)$ be the difficulty of a chart with fixed transition type $t$, fixed gap $g$, and $n$ repeated such transitions. Then:
 
