@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from models.api.api_action_args import ChartArgs
+from models.charts.extended_chart import ExtendedChart
 from services.ffr_api_service import get_chart
 from utils.chart_numpy import get_vectorized_per_hand_hits_data
 from utils.io import default_cache_path
@@ -174,6 +175,12 @@ class LoadChartDialog(QDialog):
 
         # Use get_chart to load the chart either from API or disk
         chart = get_chart(api_args)
+
+        if chart is None:
+            raise ValueError("No chart data found for the specified ID or path.")
+
+        if not isinstance(chart, ExtendedChart):
+            raise TypeError("Expected ExtendedChart type, got {}".format(type(chart)))
 
         # Process the chart data (both left and right hits)
         left_hits_data, right_hits_data = get_vectorized_per_hand_hits_data(chart)

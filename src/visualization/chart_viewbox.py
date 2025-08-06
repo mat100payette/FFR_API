@@ -91,6 +91,9 @@ class ChartViewBox(pg.ViewBox):
         # Initialize overall bounds to capture the full data range
         y_min, y_max = np.inf, -np.inf
 
+        if self._arrows_plot is None:
+            raise ValueError("Arrows plot is not set. Please set it before capturing the plot.")
+
         # Get the bounds of the arrows plot
         scatter_plot_item: pg.ScatterPlotItem = self._arrows_plot.listDataItems()[0]
         _, y_data = scatter_plot_item.getData()
@@ -134,6 +137,9 @@ class ChartViewBox(pg.ViewBox):
             # Export the PlotItem (without scene padding)
             exporter = ImageExporter(parent_plotitem)  # Export only the PlotItem
             chunk_qimage = exporter.export(toBytes=True)
+            if chunk_qimage is None:
+                raise RuntimeError(f"Failed to export chunk {y} as QImage.")
+
             chunk_size = chunk_qimage.size()
 
             if chunk_width is None:
@@ -158,6 +164,9 @@ class ChartViewBox(pg.ViewBox):
             return
 
         captured_chunks = captured_chunks[::-1]
+
+        if chunk_width is None or chunk_height is None:
+            raise RuntimeError("Chunk width or height is None, cannot proceed with stitching.")
 
         # Stitch the captured chunks into a final image
         stitched_image = stitch_images_vertically(captured_chunks, chunk_width, chunk_height)

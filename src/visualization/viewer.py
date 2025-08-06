@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Chart Visualizer")
 
         # Create the plot widget and layout
-        self.graphWidget: pg.GraphicsLayout = pg.GraphicsLayoutWidget()
+        self.graphWidget = pg.GraphicsLayoutWidget()
         self.setCentralWidget(self.graphWidget)
 
         self._note_size_controller = NoteSizeController()
@@ -205,12 +205,14 @@ class MainWindow(QMainWindow):
         """
         Update the scroll direction dynamically without recreating the entire plot.
         """
-        if dir == "up":
-            self._chart_plot_item.getViewBox().invertY(True)
-            self.upscroll_action.setChecked(True)
-        elif dir == "down":
-            self._chart_plot_item.getViewBox().invertY(False)
-            self.downscroll_action.setChecked(True)
+        view_box = self._chart_plot_item.getViewBox()
+        if view_box is not None:
+            if dir == "up":
+                view_box.invertY(True)
+                self.upscroll_action.setChecked(True)
+            elif dir == "down":
+                view_box.invertY(False)
+                self.downscroll_action.setChecked(True)
 
 
 # Function to create a scatter plot with hoverable points
@@ -268,6 +270,7 @@ def get_positions_and_colors(
     col1_mask: np.ndarray = columns == 1
     col2_mask: np.ndarray = columns == 2
     double_mask: np.ndarray = columns == 3
+    symbols: list[str] = []
 
     left_note_symbol = _get_note_painter_path(0)
     down_note_symbol = _get_note_painter_path(1)
@@ -296,4 +299,9 @@ def get_positions_and_colors(
 
     adjusted_scores = np.concatenate([scores[col1_mask], scores[col2_mask], np.repeat(scores[double_mask], 2)])
 
-    return x_positions.tolist(), y_positions.tolist(), symbols, colors.tolist(), adjusted_scores.tolist()
+    x_positions_list = [float(x) for x in x_positions]
+    y_positions_list = [int(y) for y in y_positions]
+    colors_list = [str(c) for c in colors]
+    adjusted_scores_list = [int(s) for s in adjusted_scores]
+
+    return x_positions_list, y_positions_list, symbols, colors_list, adjusted_scores_list

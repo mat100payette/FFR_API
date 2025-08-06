@@ -67,16 +67,19 @@ def get_chart(args: ChartArgs):
 
     fetch_from_api: bool = True
     path: str | None = None
-    chart: ChartResponse | ExtendedChart = None
+    chart: ChartResponse | ExtendedChart | None = None
 
     try:
         # Determine full filename if from_file, from_dir or to_dir is provided
         if args.from_file:
             path = args.from_file
         elif args.to_dir:
-            path = build_chart_filename(args.to_dir, args.extended, args.compressed, level_id)
+            path = str(build_chart_filename(args.to_dir, args.extended, args.compressed, level_id))
         elif args.from_dir:
-            path = build_chart_filename(args.from_dir, args.extended, args.compressed, level_id)
+            path = str(build_chart_filename(args.from_dir, args.extended, args.compressed, level_id))
+
+        if path is None:
+            raise ValueError("Either from_file, from_dir or to_dir must be specified.")
 
         # Load from disk and extend if necessary
         if args.from_file or args.from_dir:

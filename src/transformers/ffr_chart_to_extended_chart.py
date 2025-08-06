@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from models.charts.extended_chart import ChartHit, ExtendedChart, ManipCorrectedHit, ManipCorrectedHitWithTransition
+from models.charts.extended_chart import ChartHit, ChartInfo, ExtendedChart, ManipCorrectedHit, ManipCorrectedHitWithTransition
 from models.responses.chart_response import ChartNote, ChartResponse
 from utils.versioning import EXTENDED_CHART_VERSION
 
@@ -11,7 +11,19 @@ def extend_ffr_chart(ffr_chart: ChartResponse):
     hits = compute_hits(ffr_chart)
     manip_corrected_hits = compute_manip_corrected_hits(hits)
     manip_corr_hits_with_transition = compute_hit_transitions(manip_corrected_hits)
-    return ExtendedChart(ffr_chart.info, ffr_chart.chart, hits, manip_corr_hits_with_transition, EXTENDED_CHART_VERSION)
+
+    chart_info = ChartInfo(
+        id=ffr_chart.info.id,
+        name=ffr_chart.info.name,
+        genre=ffr_chart.info.genre,
+        difficulty=ffr_chart.info.difficulty,
+        length=ffr_chart.info.length,
+        note_count=len(ffr_chart.chart),
+        timestamp=ffr_chart.info.timestamp,
+        timestamp_format=ffr_chart.info.timestamp_format,
+    )
+
+    return ExtendedChart(chart_info, ffr_chart.chart, hits, manip_corr_hits_with_transition, EXTENDED_CHART_VERSION)
 
 
 def ffr_note_dir(note: ChartNote):
@@ -60,12 +72,12 @@ def compute_hits(ffr_chart: ChartResponse):
 
     # Split notes into left and right hand
     notes_by_hand = pd_notes.groupby(1, as_index=False)
-    notes_left_hand = pd.DataFrame(np_notes[notes_by_hand.groups[0].values])
-    notes_right_hand = pd.DataFrame(np_notes[notes_by_hand.groups[1].values])
+    notes_left_hand = pd.DataFrame(np_notes[notes_by_hand.groups[0].to_numpy()])
+    notes_right_hand = pd.DataFrame(np_notes[notes_by_hand.groups[1].to_numpy()])
 
     # Transform notes into hits on each hand
-    left_hits = notes_left_hand.groupby(0).sum().reset_index().values[:, [0, 3]]
-    right_hits = notes_right_hand.groupby(0).sum().reset_index().values[:, [0, 3]]
+    left_hits = notes_left_hand.groupby(0).sum().reset_index().to_numpy()[:, [0, 3]]
+    right_hits = notes_right_hand.groupby(0).sum().reset_index().to_numpy()[:, [0, 3]]
 
     # Get the manip score of each hit
     left_hits_with_manip = get_manip_jumps_on_hand(left_hits)
@@ -106,7 +118,7 @@ def iterative_smoothing_projection(x: NDArray[np.int32], T: int = 50, iterations
     # Start with original values clamped within bounds
     lower = x - T
     upper = x + T
-    current: NDArray[np.float32] = np.clip(np.linspace(x[0] - T, x[-1] + T, n), lower, upper)
+    current = np.clip(np.linspace(x[0] - T, x[-1] + T, n, dtype=np.int32), lower, upper)
 
     for _ in range(iterations):
         # Smooth with average of neighbors
@@ -121,7 +133,7 @@ def iterative_smoothing_projection(x: NDArray[np.int32], T: int = 50, iterations
                 smoothed[i] = smoothed[i - 1]
         current = smoothed
 
-    return current.round().astype(np.int32)
+    return current.round().astype(np.float32)
 
 
 def compute_time_score(time_diff: NDArray[np.float32]) -> NDArray[np.float32]:
@@ -132,7 +144,7 @@ def compute_time_score(time_diff: NDArray[np.float32]) -> NDArray[np.float32]:
     # Compute the time score using the logistic function
     time_scores = 1 / (1 + np.exp(steepness * (time_diff - midpoint)))
 
-    return time_scores
+    return time_scores.astype(np.float32)
 
 
 def compute_alternating_penalties(
@@ -147,30 +159,29 @@ def compute_alternating_penalties(
     for idx in range(len(candidate_indices)):
         i = candidate_indices[idx]
         manip_penalty: float = 0.0
-        has_prev: bool = i > 0
-        has_next_next: bool = i + 2 < len(times)
-        has_prev_prev: bool = i > 1
 
-        # Check current and next input columns
+        has_prev = i > 0
+        has_prev_prev = i > 1
+        has_next = i + 1 < len(times)
+        has_next_next = i + 2 < len(times)
+
         current_col = columns[i]
-        next_col = columns[i + 1]
+        next_col = columns[i + 1] if has_next else None
 
-        # Evaluate surrounding context (previous and next columns and times)
-        prev_col = columns[i - 1] if has_prev_prev else None
+        prev_col = columns[i - 1] if has_prev else None
         prev_prev_col = columns[i - 2] if has_prev_prev else None
         next_next_col = columns[i + 2] if has_next_next else None
 
         prev_prev_time = times[i - 2] if has_prev_prev else None
-        prev_time = times[i - 1] if has_prev_prev else None
+        prev_time = times[i - 1] if has_prev else None
         current_time = times[i]
-        next_time = times[i + 1]
+        next_time = times[i + 1] if has_next else None
         next_next_time = times[i + 2] if has_next_next else None
 
-        # Time differences
-        time_diff_prev_prev = prev_time - prev_prev_time if has_prev_prev else float("inf")
-        time_diff_prev_curr = current_time - prev_time if has_prev_prev else float("inf")
-        time_diff_curr_next = next_time - current_time
-        time_diff_next_next = next_next_time - next_time if has_next_next else float("inf")
+        time_diff_prev_prev = (prev_time - prev_prev_time) if prev_time is not None and prev_prev_time is not None else float("inf")
+        time_diff_prev_curr = (current_time - prev_time) if prev_time is not None else float("inf")
+        time_diff_curr_next = (next_time - current_time) if next_time is not None else float("inf")
+        time_diff_next_next = (next_next_time - next_time) if next_next_time is not None and next_time is not None else float("inf")
 
         # Initialize triplet check variables
         triplets = []
@@ -184,9 +195,11 @@ def compute_alternating_penalties(
             triplet_times.append(time_diff_prev_prev + time_diff_prev_curr)
 
             if time_diff_prev_prev < max_diff_for_triplet_detection:
-                manip_penalty -= time_scores[i - 2] / 2 * (max_diff_for_triplet_detection - time_diff_prev_prev) / max_diff_for_triplet_detection
+                manip_penalty -= float(
+                    time_scores[i - 2] / 2 * (max_diff_for_triplet_detection - time_diff_prev_prev) / max_diff_for_triplet_detection
+                )
             else:
-                manip_penalty -= (time_diff_prev_prev - max_diff_for_triplet_detection) / max_diff_for_triplet_detection
+                manip_penalty -= float((time_diff_prev_prev - max_diff_for_triplet_detection) / max_diff_for_triplet_detection)
 
         if has_prev and (prev_col, current_col, next_col) in valid_triplet_columns:
             triplets.append((i - 1, i, i + 1))
@@ -197,9 +210,11 @@ def compute_alternating_penalties(
             triplet_times.append(time_diff_curr_next + time_diff_next_next)
 
             if time_diff_next_next < max_diff_for_triplet_detection:
-                manip_penalty -= time_scores[i + 2] / 2 * (max_diff_for_triplet_detection - time_diff_next_next) / max_diff_for_triplet_detection
+                manip_penalty -= float(
+                    time_scores[i + 2] / 2 * (max_diff_for_triplet_detection - time_diff_next_next) / max_diff_for_triplet_detection
+                )
             else:
-                manip_penalty -= (time_diff_next_next - max_diff_for_triplet_detection) / max_diff_for_triplet_detection
+                manip_penalty -= float((time_diff_next_next - max_diff_for_triplet_detection) / max_diff_for_triplet_detection)
 
         manip_penalty = min(max(manip_penalty, 0), 1)
 
@@ -214,7 +229,7 @@ def compute_alternating_penalties(
             avg_time_diff = closest_triplet_time_sum / 2
 
             # Calculate the penalty based on how close the time differences are
-            ratio_to_alternation = min(times[i2] - times[i1], times[i3] - times[i2]) / avg_time_diff
+            ratio_to_alternation = min(int(times[i2] - times[i1]), int(times[i3] - times[i2])) / avg_time_diff
             manip_penalty += (ratio_to_alternation - 0.5) * 2
 
             # Consider surrounding inputs to reinforce or reduce the penalty
@@ -312,7 +327,7 @@ def adjust_consecutive_time_scores(time_scores: NDArray[np.float32]) -> NDArray[
 def get_manip_jumps_on_hand(
     data: NDArray[np.int32],
     threshold: int = 100,
-) -> NDArray[np.int32]:
+) -> NDArray[np.int32 | np.int8]:
     times = data[:, 0].astype(np.int32)
     columns = data[:, 1].astype(np.int8)
 

@@ -4,7 +4,6 @@ import msgspec
 import requests
 
 from models.api.api_action_args import AllChartArgs, BlackBoxCalcArgs
-from models.responses.chart_response import ChartResponse
 from services.ffr_api_service import get_all_charts
 from utils.io import write_json_to_file
 
@@ -46,7 +45,7 @@ def get_complete_ffr_estimates(args: BlackBoxCalcArgs):
         r"C:\GitHub\FFR_API\data",
     )
 
-    ffr_charts: list[ChartResponse | None] = get_all_charts(charts_args)
+    ffr_charts = get_all_charts(charts_args)
 
     results = []
     for ffr_chart in ffr_charts:

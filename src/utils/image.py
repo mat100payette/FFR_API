@@ -15,7 +15,7 @@ def qimage_to_pil_image(qimage: QImage) -> Image.Image:
     height = qimage.height()
 
     # Get the memoryview of the image bits and cast it to a buffer
-    buffer = qimage.bits().tobytes()
+    buffer = bytes(qimage.bits())
 
     # Convert the buffer into a NumPy array
     arr = np.frombuffer(buffer, dtype=np.uint8).reshape((height, qimage.bytesPerLine() // 4, 4))
