@@ -11,3 +11,4 @@ pulp
 gekko
 scipy
 pillow
+pytest

@@ -8,6 +8,9 @@
         "[python]": {
             "editor.defaultFormatter": "ms-python.black-formatter"
         },
-        "python.languageServer": "Pylance"
+        "python.languageServer": "Pylance",
+        "python.testing.unittestEnabled": false,
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests"]
     }
 }
